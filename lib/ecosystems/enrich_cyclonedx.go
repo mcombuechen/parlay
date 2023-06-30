@@ -20,8 +20,6 @@ import (
 	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
-	"github.com/package-url/packageurl-go"
-	"github.com/remeh/sizedwaitgroup"
 
 	"github.com/snyk/parlay/ecosystems/packages"
 )
@@ -196,26 +194,21 @@ func enrichCDX(bom *cdx.BOM) {
 		return
 	}
 
-	wg := sizedwaitgroup.New(20)
-	newComponents := make([]cdx.Component, len(*bom.Components))
-	for i, component := range *bom.Components {
-		wg.Add()
-		go func(component cdx.Component, i int) {
-			// TODO: return when there is no usable Purl on the component.
-			purl, _ := packageurl.FromString(component.PackageURL) //nolint:errcheck
-			resp, err := GetPackageData(purl)
-			if err == nil {
-				packageData := resp.JSON200
-				if packageData != nil {
-					for _, enrichFunc := range cdxEnrichers {
-						component = enrichFunc(component, *packageData)
-					}
-				}
-			}
-			newComponents[i] = component
-			wg.Done()
-		}(component, i)
+	purlsByID := make(map[string]string)
+	for _, c := range *bom.Components {
+		if c.PackageURL != "" {
+			purlsByID[c.BOMRef] = c.PackageURL
+		}
 	}
-	wg.Wait()
-	bom.Components = &newComponents
+
+	pkgDataByID := GetPackageDataConcurrently(purlsByID, 20)
+
+	for i, c := range *bom.Components {
+		if data, ok := pkgDataByID[c.BOMRef]; ok {
+			for _, enrichFunc := range cdxEnrichers {
+				c = enrichFunc(c, *data)
+			}
+			(*bom.Components)[i] = c
+		}
+	}
 }

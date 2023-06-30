@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sync"
 
 	"github.com/package-url/packageurl-go"
+	"github.com/remeh/sizedwaitgroup"
 
 	"github.com/snyk/parlay/ecosystems/packages"
 )
@@ -46,6 +48,41 @@ func GetPackageData(purl packageurl.PackageURL) (*packages.GetRegistryPackageRes
 		return nil, err
 	}
 	return resp, nil
+}
+
+func GetPackageDataConcurrently(purlsByID map[string]string, concurrency int) map[string]*packages.Package {
+	mtx := sync.Mutex{}
+	wg := sizedwaitgroup.New(concurrency)
+	results := make(map[string]*packages.Package)
+
+	for id, p := range purlsByID {
+		wg.Add()
+
+		go func(p, id string) {
+			defer wg.Done()
+			defer mtx.Unlock()
+
+			purl, err := packageurl.FromString(p)
+			if err != nil {
+				return
+			}
+
+			resp, err := GetPackageData(purl)
+			if err != nil {
+				return
+			}
+
+			packageData := resp.JSON200
+			if packageData != nil {
+				mtx.Lock()
+				results[id] = packageData
+			}
+		}(p, id)
+	}
+
+	wg.Wait()
+
+	return results
 }
 
 func purlToEcosystemsRegistry(purl packageurl.PackageURL) string {

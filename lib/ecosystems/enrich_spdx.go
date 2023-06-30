@@ -29,27 +29,23 @@ import (
 )
 
 func enrichSPDX(bom *spdx.Document) {
-	packages := bom.Packages
-
-	for _, pkg := range packages {
+	purlsByID := make(map[string]string)
+	for _, pkg := range bom.Packages {
 		purl, err := extractPurl(pkg)
 		if err != nil {
 			continue
 		}
+		purlsByID[string(pkg.PackageSPDXIdentifier)] = purl.String()
+	}
 
-		resp, err := GetPackageData(*purl)
-		if err != nil {
-			continue
+	pkgDataByID := GetPackageDataConcurrently(purlsByID, 20)
+
+	for _, pkg := range bom.Packages {
+		if pkgData, ok := pkgDataByID[string(pkg.PackageSPDXIdentifier)]; ok {
+			enrichSPDXDescription(pkg, pkgData)
+			enrichSPDXLicense(pkg, pkgData)
+			enrichSPDXHomepage(pkg, pkgData)
 		}
-
-		pkgData := resp.JSON200
-		if pkgData == nil {
-			continue
-		}
-
-		enrichSPDXDescription(pkg, pkgData)
-		enrichSPDXLicense(pkg, pkgData)
-		enrichSPDXHomepage(pkg, pkgData)
 	}
 }
 
