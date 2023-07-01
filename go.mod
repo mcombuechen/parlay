@@ -8,15 +8,17 @@ require (
 	github.com/edoardottt/depsdev v0.0.3
 	github.com/google/uuid v1.3.0
 	github.com/jarcoal/httpmock v1.3.0
-	github.com/package-url/packageurl-go v0.1.0
+	github.com/package-url/packageurl-go v0.1.1-0.20220428063043-89078438f170
 	github.com/remeh/sizedwaitgroup v1.0.0
 	github.com/rs/zerolog v1.29.1
+	github.com/spdx/tools-golang v0.5.2
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.15.0
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.4
 )
 
 require (
+	github.com/anchore/go-struct-converter v0.0.0-20221118182256-c68fdcfa2092 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/avast/retry-go v3.0.0+incompatible // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

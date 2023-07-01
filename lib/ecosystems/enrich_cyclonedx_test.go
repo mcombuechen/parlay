@@ -1,3 +1,19 @@
+/*
+ * © 2023 Snyk Limited All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ecosystems
 
 import (
@@ -5,14 +21,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/snyk/parlay/ecosystems/packages"
-
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/snyk/parlay/ecosystems/packages"
+	"github.com/snyk/parlay/lib/sbom"
 )
 
-func TestEnrichSBOM(t *testing.T) {
+func TestEnrichSBOM_CycloneDX(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -26,23 +43,22 @@ func TestEnrichSBOM(t *testing.T) {
 			})
 		})
 
-	bom := new(cdx.BOM)
-
-	components := []cdx.Component{
-		{
-			BOMRef:     "pkg:golang/github.com/CycloneDX/cyclonedx-go@v0.3.0",
-			Type:       cdx.ComponentTypeLibrary,
-			Name:       "cyclonedx-go",
-			Version:    "v0.3.0",
-			PackageURL: "pkg:golang/github.com/CycloneDX/cyclonedx-go@v0.3.0",
+	bom := &cdx.BOM{
+		Components: &[]cdx.Component{
+			{
+				BOMRef:     "pkg:golang/github.com/CycloneDX/cyclonedx-go@v0.3.0",
+				Type:       cdx.ComponentTypeLibrary,
+				Name:       "cyclonedx-go",
+				Version:    "v0.3.0",
+				PackageURL: "pkg:golang/github.com/CycloneDX/cyclonedx-go@v0.3.0",
+			},
 		},
 	}
+	doc := &sbom.SBOMDocument{BOM: bom}
 
-	bom.Components = &components
+	EnrichSBOM(doc)
 
-	bom = EnrichSBOM(bom)
-
-	components = *bom.Components
+	components := *bom.Components
 	component := components[0]
 	licenses := *component.Licenses
 
@@ -68,23 +84,22 @@ func TestEnrichSBOMWithoutLicense(t *testing.T) {
 			})
 		})
 
-	bom := new(cdx.BOM)
-
-	components := []cdx.Component{
-		{
-			BOMRef:     "pkg:golang/github.com/CycloneDX/cyclonedx-go@v0.3.0",
-			Type:       cdx.ComponentTypeLibrary,
-			Name:       "cyclonedx-go",
-			Version:    "v0.3.0",
-			PackageURL: "pkg:golang/github.com/CycloneDX/cyclonedx-go@v0.3.0",
+	bom := &cdx.BOM{
+		Components: &[]cdx.Component{
+			{
+				BOMRef:     "pkg:golang/github.com/CycloneDX/cyclonedx-go@v0.3.0",
+				Type:       cdx.ComponentTypeLibrary,
+				Name:       "cyclonedx-go",
+				Version:    "v0.3.0",
+				PackageURL: "pkg:golang/github.com/CycloneDX/cyclonedx-go@v0.3.0",
+			},
 		},
 	}
+	doc := &sbom.SBOMDocument{BOM: bom}
 
-	bom.Components = &components
+	EnrichSBOM(doc)
 
-	bom = EnrichSBOM(bom)
-
-	components = *bom.Components
+	components := *bom.Components
 
 	assert.Equal(t, "description", components[0].Description)
 
@@ -103,7 +118,7 @@ func TestEnrichDescription(t *testing.T) {
 	pack := packages.Package{
 		Description: &desc,
 	}
-	component = enrichDescription(component, pack)
+	component = enrichCDXDescription(component, pack)
 	assert.Equal(t, "description", component.Description)
 }
 
@@ -116,7 +131,7 @@ func TestEnrichLicense(t *testing.T) {
 	pack := packages.Package{
 		NormalizedLicenses: []string{"BSD-3-Clause"},
 	}
-	component = enrichLicense(component, pack)
+	component = enrichCDXLicense(component, pack)
 	licenses := *component.Licenses
 
 	comp := cdx.LicenseChoice(cdx.LicenseChoice{Expression: "BSD-3-Clause"})
@@ -125,7 +140,8 @@ func TestEnrichLicense(t *testing.T) {
 
 func TestEnrichBlankSBOM(t *testing.T) {
 	bom := new(cdx.BOM)
-	bom = EnrichSBOM(bom)
+	doc := &sbom.SBOMDocument{BOM: bom}
+	EnrichSBOM(doc)
 	assert.Nil(t, bom.Components)
 }
 
@@ -156,7 +172,7 @@ func TestEnrichHomepageWithNilHomepage(t *testing.T) {
 	component := cdx.Component{}
 	packageData := packages.Package{Homepage: nil}
 
-	result := enrichHomepage(component, packageData)
+	result := enrichCDXHomepage(component, packageData)
 
 	assert.Equal(t, component, result)
 }
@@ -165,7 +181,7 @@ func TestEnrichHomepageWithNonNullHomepage(t *testing.T) {
 	component := cdx.Component{}
 	packageData := packages.Package{Homepage: pointerToString("https://example.com")}
 
-	result := enrichHomepage(component, packageData)
+	result := enrichCDXHomepage(component, packageData)
 
 	expected := cdx.Component{
 		ExternalReferences: &[]cdx.ExternalReference{
@@ -179,7 +195,7 @@ func TestEnrichRegistryURLWithNilRegistryURL(t *testing.T) {
 	component := cdx.Component{}
 	packageData := packages.Package{RegistryUrl: nil}
 
-	result := enrichRegistryURL(component, packageData)
+	result := enrichCDXRegistryURL(component, packageData)
 
 	assert.Equal(t, component, result)
 }
@@ -188,7 +204,7 @@ func TestEnrichRegistryURLWithNonNullRegistryURL(t *testing.T) {
 	component := cdx.Component{}
 	packageData := packages.Package{RegistryUrl: pointerToString("https://example.com")}
 
-	result := enrichRegistryURL(component, packageData)
+	result := enrichCDXRegistryURL(component, packageData)
 
 	expected := cdx.Component{
 		ExternalReferences: &[]cdx.ExternalReference{
@@ -208,13 +224,13 @@ func TestEnrichLatestReleasePublishedAt(t *testing.T) {
 		LatestReleasePublishedAt: nil,
 	}
 
-	result := enrichLatestReleasePublishedAt(component, packageData)
+	result := enrichCDXLatestReleasePublishedAt(component, packageData)
 	assert.Equal(t, component, result)
 
 	latestReleasePublishedAt := time.Date(2023, time.May, 1, 0, 0, 0, 0, time.UTC)
 	packageData.LatestReleasePublishedAt = &latestReleasePublishedAt
 	expectedTimestamp := latestReleasePublishedAt.UTC().Format(time.RFC3339)
-	result = enrichLatestReleasePublishedAt(component, packageData)
+	result = enrichCDXLatestReleasePublishedAt(component, packageData)
 
 	prop := (*result.Properties)[0]
 	assert.Equal(t, "ecosystems:latest_release_published_at", prop.Name)
@@ -227,7 +243,7 @@ func TestEnrichLocation(t *testing.T) {
 	// Test case 1: packageData.RepoMetadata is nil
 	component := cdx.Component{Name: "test"}
 	packageData := packages.Package{}
-	result := enrichLocation(component, packageData)
+	result := enrichCDXLocation(component, packageData)
 	assert.Equal(component, result)
 
 	// Test case 2: packageData.RepoMetadata is not nil, but "owner_record" is missing
@@ -235,7 +251,7 @@ func TestEnrichLocation(t *testing.T) {
 	packageData = packages.Package{RepoMetadata: &map[string]interface{}{
 		"not_owner_record": map[string]interface{}{},
 	}}
-	result = enrichLocation(component, packageData)
+	result = enrichCDXLocation(component, packageData)
 	assert.Equal(component, result)
 
 	// Test case 3: "location" field is missing in "owner_record"
@@ -245,7 +261,7 @@ func TestEnrichLocation(t *testing.T) {
 			"not_location": "test",
 		},
 	}}
-	result = enrichLocation(component, packageData)
+	result = enrichCDXLocation(component, packageData)
 	assert.Equal(component, result)
 
 	// Test case 4: "location" field is present in "owner_record"
@@ -261,6 +277,6 @@ func TestEnrichLocation(t *testing.T) {
 			{Name: "ecosystems:owner_location", Value: "test_location"},
 		},
 	}
-	result = enrichLocation(component, packageData)
+	result = enrichCDXLocation(component, packageData)
 	assert.Equal(expectedComponent, result)
 }
